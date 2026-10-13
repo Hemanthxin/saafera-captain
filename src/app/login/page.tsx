@@ -1,67 +1,57 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, BellRing, CarFront, ShieldCheck } from "lucide-react";
+import { ArrowRight, BellRing, CarFront, Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { useDriver } from "@/lib/store";
 import { Logo } from "@/components/Logo";
 
-const CODE_LEN = 6;
+type Mode = "signin" | "signup";
 
 export default function LoginPage() {
-  const { ready, signedIn, requestOtp, verify } = useDriver();
+  const { ready, signedIn, signIn, signUp } = useDriver();
   const router = useRouter();
-  const [step, setStep] = useState<"phone" | "otp" | "name">("phone");
-  const [phone, setPhone] = useState("");
+  const [mode, setMode] = useState<Mode>("signin");
   const [name, setName] = useState("");
-  const [digits, setDigits] = useState<string[]>(Array(CODE_LEN).fill(""));
-  const [hint, setHint] = useState("");
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [show, setShow] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const boxes = useRef<Array<HTMLInputElement | null>>([]);
 
   useEffect(() => {
     if (ready && signedIn) router.replace("/drive");
   }, [ready, signedIn, router]);
 
-  async function sendOtp() {
-    if (phone.replace(/\D/g, "").length !== 10) return setError("Enter your 10-digit mobile number");
-    setBusy(true);
+  function switchMode(m: Mode) {
+    setMode(m);
     setError("");
-    const res = await requestOtp(phone);
-    setBusy(false);
-    if (!res.ok) return setError(res.error);
-    setHint(res.devHint ?? "");
-    setStep("otp");
-    setTimeout(() => boxes.current[0]?.focus(), 80);
+    setPassword("");
+    setConfirm("");
   }
 
-  async function submitCode(code: string, driverName?: string) {
-    setBusy(true);
+  async function submit() {
     setError("");
-    const res = await verify(phone, code, driverName);
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.error);
-      setDigits(Array(CODE_LEN).fill(""));
-      setStep("otp");
-      setTimeout(() => boxes.current[0]?.focus(), 50);
-      return;
+    if (phone.replace(/\D/g, "").length !== 10) return setError("Enter your 10-digit mobile number");
+    if (mode === "signup") {
+      if (name.trim().length < 2) return setError("Enter your full name");
+      if (password.length < 8) return setError("Password must be at least 8 characters");
+      if (password !== confirm) return setError("The two passwords don't match");
+    } else if (!password) {
+      return setError("Enter your password");
     }
-    if (res.needsName) return setStep("name");
+
+    setBusy(true);
+    const res = mode === "signup" ? await signUp(name, phone, password) : await signIn(phone, password);
+    setBusy(false);
+    if (!res.ok) return setError(res.error);
     router.replace("/drive");
   }
 
-  function setDigit(i: number, v: string) {
-    const d = v.replace(/\D/g, "").slice(-1);
-    const next = [...digits];
-    next[i] = d;
-    setDigits(next);
-    if (d && i < CODE_LEN - 1) boxes.current[i + 1]?.focus();
-    if (next.every(Boolean)) void submitCode(next.join(""));
-  }
-
-  const code = digits.join("");
+  const field = "mt-1.5 w-full rounded-2xl border-2 border-transparent bg-surface px-4 py-3.5 text-[16px] font-semibold outline-none placeholder:text-muted/50 focus:border-brand";
+  const label = "block text-xs font-bold uppercase tracking-wider text-muted";
+  const onEnter = (e: React.KeyboardEvent) => e.key === "Enter" && !busy && submit();
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
@@ -92,80 +82,80 @@ export default function LoginPage() {
 
       <section className="flex flex-col justify-center px-6 py-10 sm:px-12">
         <div className="mx-auto w-full max-w-sm">
-          <div className="mb-10 lg:hidden">
+          <div className="mb-8 lg:hidden">
             <Logo size={44} tagline />
           </div>
 
-          {step === "phone" && (
-            <div className="animate-rise">
-              <h2 className="text-3xl font-extrabold tracking-tight">Welcome, driver</h2>
-              <p className="mt-2 text-muted">Sign in or create your account with your mobile number.</p>
-              <label className="mt-8 block text-xs font-bold uppercase tracking-wider text-muted">Mobile number</label>
-              <div className="mt-2 flex items-center gap-3 rounded-2xl border-2 border-transparent bg-surface px-4 focus-within:border-brand">
-                <span className="font-bold text-muted">+91</span>
-                <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                  onKeyDown={(e) => e.key === "Enter" && sendOtp()}
-                  inputMode="numeric"
-                  placeholder="98765 43210"
-                  className="w-full bg-transparent py-4 text-lg font-semibold outline-none placeholder:text-muted/50"
-                />
-              </div>
-              {error && <p className="mt-2 text-sm font-semibold text-danger">{error}</p>}
-              <button disabled={busy} onClick={sendOtp} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-extrabold text-brandInk transition active:scale-[0.98] disabled:opacity-60">
-                {busy ? "Sending…" : "Get code"} <ArrowRight size={18} />
+          <div className="grid grid-cols-2 gap-1 rounded-2xl bg-surface p-1">
+            {(["signin", "signup"] as const).map((m) => (
+              <button key={m} onClick={() => switchMode(m)} className={`rounded-xl py-2.5 text-sm font-extrabold transition ${mode === m ? "bg-brand text-brandInk" : "text-muted hover:text-ink"}`}>
+                {m === "signin" ? "Sign in" : "Create account"}
               </button>
-            </div>
-          )}
+            ))}
+          </div>
 
-          {step === "otp" && (
-            <div className="animate-rise">
-              <h2 className="text-3xl font-extrabold tracking-tight">Enter the code</h2>
-              <p className="mt-2 text-muted">
-                Sent to +91 {phone}.{" "}
-                <button onClick={() => setStep("phone")} className="font-bold text-brand">
-                  Change
-                </button>
-              </p>
-              <div className="mt-8 flex gap-2">
-                {digits.map((d, i) => (
+          <div className="animate-rise mt-7" key={mode}>
+            <h2 className="text-3xl font-extrabold tracking-tight">{mode === "signin" ? "Welcome back" : "Join as a driver"}</h2>
+            <p className="mt-2 text-muted">{mode === "signin" ? "Sign in with your mobile number and password." : "Create your account, then register your vehicle."}</p>
+
+            <div className="mt-6 space-y-4">
+              {mode === "signup" && (
+                <label className={label}>
+                  Full name
+                  <input className={field} value={name} onChange={(e) => setName(e.target.value)} onKeyDown={onEnter} autoComplete="name" placeholder="Ravi Kumar" />
+                </label>
+              )}
+
+              <label className={label}>
+                Mobile number
+                <div className="mt-1.5 flex items-center gap-3 rounded-2xl border-2 border-transparent bg-surface px-4 focus-within:border-brand">
+                  <span className="font-bold text-muted">+91</span>
                   <input
-                    key={i}
-                    ref={(el) => {
-                      boxes.current[i] = el;
-                    }}
-                    value={d}
-                    onChange={(e) => setDigit(i, e.target.value)}
-                    onKeyDown={(e) => e.key === "Backspace" && !d && i > 0 && boxes.current[i - 1]?.focus()}
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    onKeyDown={onEnter}
                     inputMode="numeric"
-                    className="h-14 w-full min-w-0 rounded-xl border-2 border-transparent bg-surface text-center text-xl font-extrabold outline-none focus:border-brand"
+                    autoComplete="username"
+                    placeholder="98765 43210"
+                    className="w-full bg-transparent py-3.5 text-[16px] font-semibold normal-case tracking-normal outline-none placeholder:text-muted/50"
                   />
-                ))}
-              </div>
-              {error && <p className="mt-3 text-sm font-semibold text-danger">{error}</p>}
-              {busy && <p className="mt-3 text-sm text-muted">Checking…</p>}
-              {hint && <p className="mt-6 rounded-xl bg-brand/10 px-4 py-3 text-sm text-brand">Development build — use code <b>{hint}</b></p>}
-            </div>
-          )}
+                </div>
+              </label>
 
-          {step === "name" && (
-            <div className="animate-rise">
-              <h2 className="text-3xl font-extrabold tracking-tight">What&apos;s your name?</h2>
-              <p className="mt-2 text-muted">Travellers will see this when they book your car.</p>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && name.trim().length > 1 && submitCode(code, name)}
-                placeholder="Full name"
-                className="mt-8 w-full rounded-2xl border-2 border-transparent bg-surface px-4 py-4 text-lg font-semibold outline-none focus:border-brand"
-              />
-              {error && <p className="mt-2 text-sm font-semibold text-danger">{error}</p>}
-              <button disabled={busy || name.trim().length < 2} onClick={() => submitCode(code, name)} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-extrabold text-brandInk disabled:opacity-50">
-                Create account <ArrowRight size={18} />
-              </button>
+              <label className={label}>
+                Password
+                <div className="relative">
+                  <input
+                    className={`${field} pr-12`}
+                    type={show ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={onEnter}
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                    placeholder={mode === "signup" ? "At least 8 characters" : "Your password"}
+                  />
+                  <button type="button" onClick={() => setShow((s) => !s)} aria-label={show ? "Hide password" : "Show password"} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted">
+                    {show ? <EyeOff size={19} /> : <Eye size={19} />}
+                  </button>
+                </div>
+              </label>
+
+              {mode === "signup" && (
+                <label className={label}>
+                  Confirm password
+                  <input className={field} type={show ? "text" : "password"} value={confirm} onChange={(e) => setConfirm(e.target.value)} onKeyDown={onEnter} autoComplete="new-password" placeholder="Type it again" />
+                </label>
+              )}
             </div>
-          )}
+
+            {error && <p className="mt-4 rounded-xl bg-danger/10 px-4 py-3 text-sm font-semibold text-danger">{error}</p>}
+
+            <button disabled={busy} onClick={submit} className="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-extrabold text-brandInk transition active:scale-[0.98] disabled:opacity-60">
+              {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"} <ArrowRight size={18} />
+            </button>
+
+            {mode === "signin" && <p className="mt-5 text-center text-sm text-muted">Forgot your password? Contact Saafera support and they&apos;ll give you a new one.</p>}
+          </div>
         </div>
       </section>
     </div>

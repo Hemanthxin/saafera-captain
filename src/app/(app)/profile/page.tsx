@@ -1,9 +1,65 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck, BellRing, CarFront, ChevronRight, FileText, FileClock, LogOut, Moon, ShieldAlert, Star, Sun } from "lucide-react";
+import { BadgeCheck, BellRing, CarFront, ChevronRight, FileText, FileClock, KeyRound, LogOut, Moon, ShieldAlert, Star, Sun } from "lucide-react";
 import { useDriver } from "@/lib/store";
+
+function ChangePassword() {
+  const { changePassword } = useDriver();
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [again, setAgain] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setMsg(null);
+    if (next.length < 8) return setMsg({ ok: false, text: "New password must be at least 8 characters" });
+    if (next !== again) return setMsg({ ok: false, text: "The new passwords don't match" });
+    setBusy(true);
+    const err = await changePassword(current, next);
+    setBusy(false);
+    if (err) return setMsg({ ok: false, text: err });
+    setMsg({ ok: true, text: "Password changed. Other devices have been signed out." });
+    setCurrent("");
+    setNext("");
+    setAgain("");
+  }
+
+  const input = "mt-1.5 w-full rounded-xl border-2 border-transparent bg-surface2 px-3.5 py-3 text-[15px] font-semibold outline-none focus:border-brand";
+  return (
+    <div>
+      <button onClick={() => setOpen((o) => !o)} className="hairline flex w-full items-center gap-4 border-b p-4 text-left">
+        <KeyRound size={19} className="text-muted" />
+        <span className="flex-1 text-sm font-bold">Change password</span>
+        <ChevronRight size={17} className={`text-muted transition ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && (
+        <div className="hairline space-y-3 border-b p-4">
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted">
+            Current password
+            <input className={input} type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+          </label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted">
+            New password
+            <input className={input} type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="At least 8 characters" />
+          </label>
+          <label className="block text-xs font-bold uppercase tracking-wider text-muted">
+            Confirm new password
+            <input className={input} type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
+          </label>
+          {msg && <p className={`text-sm font-semibold ${msg.ok ? "text-go" : "text-danger"}`}>{msg.text}</p>}
+          <button disabled={busy || !current || !next} onClick={save} className="w-full rounded-xl bg-brand py-3 text-sm font-extrabold text-brandInk disabled:opacity-50">
+            {busy ? "Saving…" : "Save new password"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const { driver, vehicle, theme, toggleTheme, signOut, stats, push, turnOnPush, turnOffPush } = useDriver();
@@ -97,6 +153,7 @@ export default function ProfilePage() {
                 <span className={`text-sm font-semibold ${push === "on" ? "text-go" : "text-muted"}`}>{push === "on" ? "On" : "Off — turn on"}</span>
               </button>
             )}
+            <ChangePassword />
             <button onClick={toggleTheme} className="flex w-full items-center gap-4 p-4 text-left">
               {theme === "dark" ? <Moon size={19} className="text-muted" /> : <Sun size={19} className="text-muted" />}
               <span className="flex-1 text-sm font-bold">Appearance</span>

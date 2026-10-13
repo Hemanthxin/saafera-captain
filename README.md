@@ -9,7 +9,7 @@ specific vehicle; the driver is notified instantly and runs the trip.
 ```
 DRIVER (Captain app)                      SAAFERA (traveller)                 ADMIN
 ────────────────────                      ───────────────────                 ─────
-Sign in (phone + OTP)
+Sign up / sign in (mobile number + password)
 Register vehicle + rates + docs
         │ status: pending ───────────────────────────────────────────────▶ reviews in
         │                                                                  Admin → Cab Drivers
@@ -98,17 +98,30 @@ Database tables (`cab_drivers`, `cab_vehicles`, `cab_bookings`, `cab_notificatio
 `cab_push_subscriptions`, …) are created on first use, or run
 `npm run db:migrate:cabs` in the main project.
 
-### Sign-in codes
+### Sign-in: mobile number + password
 
-OTPs use Saafera's OTP service. With `OTP_PROVIDER=mock` the code is printed in the
-Saafera server log, and in development (never in production) **123456** is also
-accepted. Set `OTP_PROVIDER=msg91` to send real SMS.
+Drivers **create an account** (name, mobile number, password of 8+ characters, typed
+twice) and **sign in** with the mobile number and password — no SMS code needed.
+
+- Passwords are stored hashed (bcrypt); a wrong number and a wrong password give the
+  same message.
+- **5 wrong attempts lock the account for 10 minutes.**
+- **Forgot password:** an admin resets it in Saafera → **Admin → Cab Drivers → Driver
+  accounts → Reset password**. That generates a temporary password (shown once, for the
+  admin to pass on), clears any lockout and signs the driver out everywhere. The driver
+  then signs in and sets their own under **Profile → Change password** (which signs out
+  their other devices).
+- Phone-number verification by SMS code is not used yet; the OTP endpoints remain on the
+  server (`/api/driver/auth/otp`, `/verify`) for when it is switched back on.
+
+The live app is at **https://captain.saafera.com** and talks to **https://saafera.com**
+(`SAAFERA_URL` overrides this; see `next.config.ts`).
 
 ## Screens
 
 | Screen | What it does |
 |---|---|
-| Login | Mobile number + OTP; new drivers give their name |
+| Login | Sign in, or create an account (name, mobile, password); admin resets forgotten passwords |
 | Register / edit vehicle | Vehicle, rates, documents, photo. Editing re-submits for approval |
 | Drive | Map, listed/paused toggle, booking requests with a response countdown, the active booking's steps, "Up next" bookings |
 | Bookings | Every booking and its outcome (and rating) |

@@ -51,8 +51,10 @@ interface Ctx {
   popup: Booking | null;
   dismissPopup: () => void;
   toggleTheme: () => void;
-  requestOtp: (phone: string) => Promise<{ ok: true; devHint?: string } | { ok: false; error: string }>;
-  verify: (phone: string, code: string, name?: string) => Promise<{ ok: true; needsName?: boolean; hasVehicle?: boolean } | { ok: false; error: string }>;
+  signIn: (phone: string, password: string) => Promise<{ ok: true; hasVehicle: boolean } | { ok: false; error: string }>;
+  signUp: (name: string, phone: string, password: string) => Promise<{ ok: true; hasVehicle: boolean } | { ok: false; error: string }>;
+  /** resolves to an error message, or null on success */
+  changePassword: (current: string, next: string) => Promise<string | null>;
   signOut: () => Promise<void>;
   saveVehicle: (f: VehicleForm) => Promise<{ ok: true } | { ok: false; error: string }>;
   setAvailable: (on: boolean) => Promise<string | null>;
@@ -193,21 +195,37 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     if (popup && !bookings.some((b) => b.id === popup.id && b.status === "requested")) setPopup(null);
   }, [bookings, popup]);
 
-  const requestOtp: Ctx["requestOtp"] = useCallback(async (phone) => {
-    unlockAudio();
-    const res = await api<{ devHint?: string }>("/auth/otp", { body: { phone } });
-    return res.ok ? { ok: true, devHint: res.devHint } : { ok: false, error: res.error };
+  // Sign-in and sign-up both end the same way: keep the token and start the session.
+  const startSession = useCallback((token: string | undefined) => {
+    unlockAudio(); // the tap that signed in also unlocks the booking chime
+    setToken(token ?? null);
+    seen.current = null;
+    setTok(token ?? null);
   }, []);
 
-  const verify: Ctx["verify"] = useCallback(async (phone, code, name) => {
-    const res = await api<{ needsName?: boolean; token?: string; vehicle?: Vehicle | null }>("/auth/verify", { body: { phone, code, name } });
-    if (!res.ok) return { ok: false, error: res.error };
-    if (res.needsName) return { ok: true, needsName: true };
-    setToken(res.token ?? null);
-    seen.current = null;
-    setTok(res.token ?? null);
-    askNotificationPermission();
-    return { ok: true, hasVehicle: !!res.vehicle };
+  const signIn: Ctx["signIn"] = useCallback(
+    async (phone, password) => {
+      const res = await api<{ token: string; vehicle: Vehicle | null }>("/auth/login", { body: { phone, password } });
+      if (!res.ok) return { ok: false, error: res.error };
+      startSession(res.token);
+      return { ok: true, hasVehicle: !!res.vehicle };
+    },
+    [startSession],
+  );
+
+  const signUp: Ctx["signUp"] = useCallback(
+    async (name, phone, password) => {
+      const res = await api<{ token: string; vehicle: Vehicle | null }>("/auth/signup", { body: { name, phone, password } });
+      if (!res.ok) return { ok: false, error: res.error };
+      startSession(res.token);
+      return { ok: true, hasVehicle: false };
+    },
+    [startSession],
+  );
+
+  const changePassword: Ctx["changePassword"] = useCallback(async (current, next) => {
+    const res = await api("/auth/password", { body: { current, next } });
+    return res.ok ? null : res.error;
   }, []);
 
   const signOut = useCallback(async () => {
@@ -317,8 +335,9 @@ export function DriverProvider({ children }: { children: ReactNode }) {
     popup,
     dismissPopup: () => setPopup(null),
     toggleTheme: () => setTheme((t) => (t === "dark" ? "light" : "dark")),
-    requestOtp,
-    verify,
+    signIn,
+    signUp,
+    changePassword,
     signOut,
     saveVehicle,
     setAvailable,
