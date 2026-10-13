@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Saafera Captain palette — midnight + saffron. Values are "r g b" so Tailwind can
+   apply alpha (bg-brand/20). Dark is the default: drivers work nights. */
+:root,
+:root[data-theme="dark"] {
+  --bg: 10 15 30;
+  --surface: 18 26 48;
+  --surface-2: 27 38 68;
+  --ink: 238 242 255;
+  --muted: 143 155 192;
+  --line: 255 255 255;
+  --brand: 255 176 32;
+  --brand-ink: 26 18 3;
+  --go: 25 195 125;
+  --danger: 255 93 108;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: 243 245 251;
+  --surface: 255 255 255;
+  --surface-2: 238 241 248;
+  --ink: 12 19 48;
+  --muted: 92 102 132;
+  --line: 12 19 48;
+  --brand: 245 158 11;
+  --brand-ink: 26 18 3;
+  --go: 16 163 104;
+  --danger: 225 64 82;
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+body {
+  background: rgb(var(--bg));
+  color: rgb(var(--ink));
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+/* hairlines use the line token at low alpha */
+.hairline {
+  border-color: rgb(var(--line) / 0.1);
+}
+
+/* Leaflet sits under our overlays */
+.leaflet-container {
+  background: rgb(var(--bg));
+  font-family: inherit;
+}
+.leaflet-control-attribution {
+  background: rgb(var(--surface) / 0.7) !important;
+  color: rgb(var(--muted)) !important;
+  font-size: 9px !important;
+}
+.leaflet-control-attribution a {
+  color: rgb(var(--muted)) !important;
+}
+/* dark basemap: invert the light OSM tiles and tone them down */
+:root[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.55);
+}
+.leaflet-control-zoom {
+  display: none;
+}
+.car-marker,
+.pin-marker {
+  background: none;
+  border: none;
+}
+
+/* iOS safe areas for the bottom bars */
+.safe-b {
+  padding-bottom: max(env(safe-area-inset-bottom), 0px);
+}
